@@ -1,0 +1,5 @@
+.vscode/
+build/
+AGENTS.md
+Dockerfile
+docker-compose.yml
