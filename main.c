@@ -34,8 +34,8 @@ int main(void)
 
     struct bflb_device_s *gpio = bflb_device_get_by_name("gpio");
     if (gpio) {
-        bflb_gpio_uart_init(gpio, GPIO_PIN_16, GPIO_UART_FUNC_UART1_TX);
-        bflb_gpio_uart_init(gpio, GPIO_PIN_17, GPIO_UART_FUNC_UART1_RX);
+        bflb_gpio_uart_init(gpio, GPIO_PIN_10, GPIO_UART_FUNC_UART1_TX);
+        bflb_gpio_uart_init(gpio, GPIO_PIN_12, GPIO_UART_FUNC_UART1_RX);
     }
 
     struct bflb_device_s *uartx = bflb_device_get_by_name(DEFAULT_TEST_UART);
