@@ -2,6 +2,8 @@
 #include "board.h"
 
 #include <stdbool.h>
+#include <stdio.h>
+#include <string.h>
 
 #include "usbh_core.h"
 #include "usbh_hid.h"
@@ -11,6 +13,8 @@
 
 static volatile int hid_in_nbytes;
 static USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t hid_buffer[8];
+
+static uint8_t last_report[8];
 
 static void uart_write(uint8_t ch)
 {
@@ -117,21 +121,34 @@ static void handle_keyboard_report(const uint8_t *report, int nbytes)
     char line[96];
     int pos = 0;
     uint8_t modifiers = report[0];
+    int report_len = nbytes < sizeof(last_report) ? nbytes : sizeof(last_report);
 
     pos += snprintf(line + pos, sizeof(line) - pos, "HID mod=0x%02x keys=", modifiers);
 
     bool printed_any = false;
-    for (int i = 2; i < nbytes && i < 8; i++) {
+    for (int i = 2; i < report_len; i++) {
+        bool is_new_key = true;
+
         if (report[i] == 0) {
             continue;
         }
 
+        for (int j = 2; j < sizeof(last_report); j++) {
+            if (report[i] == last_report[j]) {
+                is_new_key = false;
+                break;
+            }
+        }
+
+        // convert scan code and modifiers to ascii
         char ch = hid_key_to_ascii(report[i], modifiers);
-        if (ch != 0 ) uart_write(ch);
-        else uart_write('.');
         if (ch != 0) {
             line[pos++] = ch;
             printed_any = true;
+
+            if (is_new_key) {
+                uart_write(ch);
+            }
         } else {
             pos += snprintf(line + pos, sizeof(line) - pos, "[%02x]", report[i]);
             printed_any = true;
@@ -146,7 +163,9 @@ static void handle_keyboard_report(const uint8_t *report, int nbytes)
 
     USB_LOG_RAW("%s", line);
 
-    //    uart1_write_string(line);
+    // save report in last_report for comparison later
+    memset(last_report, 0, sizeof(last_report));
+    memcpy(last_report, report, report_len);
 }
 
 void usbh_hid_in_callback(void *arg, int nbytes)
@@ -174,6 +193,9 @@ static void usbh_hid_thread(CONFIG_USB_OSAL_THREAD_SET_ARGV)
     }
 
     USB_LOG_RAW("USB HID bridge started\r\n");
+
+    // initialise and clear last_report for holding previous hid report
+    memset(last_report, 0, sizeof(last_report));
 
     while (1) {
         usbh_int_urb_fill(&hid_class->intin_urb, hid_class->hport, hid_class->intin, hid_buffer, hid_class->intin->wMaxPacketSize, 1000, usbh_hid_in_callback, hid_class);
